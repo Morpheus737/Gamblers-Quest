@@ -1,0 +1,578 @@
+! ---------------------------------------------------------
+! Gambler's Quest - Inform 6 Source File
+! ---------------------------------------------------------
+
+Constant Story "Gambler's Quest";
+Constant Headline "^A game demo created for IFCOMP 2026.^";
+Constant MAX_SCORE 6;
+
+Include "globals.h";
+
+! ---------------------------------------------------------
+! Quest System Globals & Routines
+! ---------------------------------------------------------
+
+! 0: inactive
+! 1: activedie
+! 2: completed
+
+Array quests --> 5;
+Array questNames -->
+    "Eat Breakfast" ! 0
+    "Dress for Work" ! 1
+    "Check the Mail" ! 2
+    "Kill the King" ! 3
+    "Ready Food and Weapons"; ! 4
+
+[ startQuest id;
+        if (quests-->id ~= 1) {
+        quests-->id = 1;
+        print "[New Quest] ", (string) questNames-->id, "^";
+    }
+];
+
+[ endQuest id;
+        if (quests-->id ~= 2) {
+        quests-->id = 2;
+        print "[Quest Completed] ", (string) questNames-->id, "^";
+        score++;
+    }
+];
+
+[ ShowQuestsSub i notfound;
+    print "Available Quests:^";
+
+    notfound = true;
+    for (i = 0: i < 5: i++) {
+        if (quests-->i == 1) {
+            print (string) questNames-->i, "^";
+            notfound = false;
+        }
+    }
+        if (notfound) print "No active quests at the moment.^";
+        rtrue;
+];
+
+[ TalkSub;
+    if (noun hasnt animate) "~How am I supposed to converse with an inanimate object?~";
+    if (noun == player) "~I already talk to myself enough.~";
+    "There is no reply.";
+];
+
+! ---------------------------------------------------------
+! Initialisation
+! ---------------------------------------------------------
+
+[ Initialise;
+    location = cottage;
+    move night_gown to player;
+
+    print "You stir in bed, the sound of birds chirping waking you. ~*yawn* I better get up so that I am not late for work.~ You sit up, and slowly rise. The morning sun shines gently through the window.^^";
+    
+    startQuest(0);
+    startQuest(1);
+    print "Type 'quests' to see your available quests.^^";
+];
+
+! ---------------------------------------------------------
+! Classes
+! ---------------------------------------------------------
+
+Class heavy
+    with before [;
+        Take: "~It's far too heavy for that!~";
+    ];
+
+Class wont
+    with before [;
+        Push, PushDir, Pull, Take:
+            print_ret (string) random(
+                "~I have no reason to do that.~",
+                "~That would achieve nothing useful.~",
+                "~Why would I do that?~",
+                "~No.~",
+                "~I'm not going to.~"
+                );
+    ];
+
+Attribute sliced;
+Attribute scored;
+
+! ---------------------------------------------------------
+! Rooms and Objects
+! ---------------------------------------------------------
+
+Object night_gown "night gown"
+with name 'night' 'gown',
+    description "Designed for sleeping in.",
+    before [;
+        Disrobe:
+            move self to dresser;
+            give self ~worn;
+            if (cleanClothes in player) {
+                if (dresser has open) {
+                    give dresser ~open;
+                    "You put the night gown back into the dresser, closing it.^";
+                }
+                "You open the dresser, put the clean clothes inside of it, and the close it.";
+            } else {
+                if (dresser has open) {
+                    "You put the night gown back into the dresser.";
+                }
+                give dresser open;
+                "You open the dresser, putting the night gown back into it.";
+            }
+        Take, Wear:
+            "~I don't need to put it on.~";
+    ]
+has worn;
+
+Object cottage "Cottage"
+  with
+    description
+        "A small and humble abode. At one end of the room is an unlit fireplace and a small oak table and chair. On the other side lies an unmade bed and a nightstand beside it, on top of which is an ornate lamp.",
+    out_to cottageDoor,
+    s_to cottageDoor
+  has light;
+
+Object -> cottageDoor "door"
+with name 'door' 'sturdy',
+    description
+        "A sturdy wooden door.",
+    door_to [;
+        if (location == cottage) {
+            return clearing;
+        }
+        return cottage;
+    ],
+    before [;
+        Open:
+            if (quests-->2 == 2|| quests-->1 ~= 2) "~I should better get ready first.~";
+    ],
+    found_in cottage clearing
+has scenery door openable lockable;
+
+Object -> fireplace "fireplace"
+  with
+    name 'fireplace' 'hearth' 'fire',
+    description "An unlit, simple stone fireplace.",
+  has scenery;
+
+Object -> bed "bed"
+  with
+    name 'unmade' 'bed',
+    description "An unmade bed where you just slept.",
+    class heavy wont
+  has scenery enterable;
+
+Object -> nightstand "nightstand"
+  with
+    name 'nightstand' 'night' 'stand' 'table',
+    description "A modest bedside nightstand.",
+    class wont
+  has scenery supporter;
+
+Object -> lamp "ornate lamp"
+  with
+    name 'ornate' 'lamp' 'lantern',
+    description "An ornate lamp resting on the nightstand.",
+    class wont
+  has scenery light switchable on;
+
+Object -> pocket_knife "pocket knife"
+  with
+    name 'pocket' 'knife' 'pocketknife' 'blade',
+    description "A small, handy folding pocket knife.",
+  has;
+
+Object -> oak_table "oak table"
+  with
+    name 'oak' 'table',
+    description "A sturdy small oak table.",
+    class heavy wont
+  has supporter enterable static;
+
+Object -> chair "chair"
+  with
+    name 'chair' 'seat',
+    description "A wooden chair matched with the oak table.",
+    class wont
+  has enterable static;
+
+Object -> loaf "loaf of bread"
+  with
+    name 'loaf' 'bread' 'plain',
+    initial "A loaf of bread resides on the table.",
+    description "A whole, uncut loaf of plain bread.",
+    before [;
+        Eat:
+            "~Surely you don't expect me to eat an entire loaf of bread without even slicing it?~";
+        Cut:
+            if (second == 0) "With what?";
+            if (second == pocket_knife) {
+                if (self has sliced) {
+                    "You have already sliced enough bread.";
+                }
+                give self sliced;
+                move slice to player;
+                move pocket_knife to player;
+                "You unfold your pocket knife and cut off a slice.";
+            }
+            "That won't work for slicing bread.";
+        Drop:
+            "~This is no time to waste perfectly good food.~";
+    ],
+  has;
+
+Object -> dresser "dresser"
+with name 'dresser',
+    description
+        "A simple dresser.",
+    class heavy wont
+has static container openable;
+
+Object -> -> cleanClothes "clean clothes"
+with name 'clean' 'clothes',
+    description
+        "A fresh pair of clean clothes. Bland but functional.",
+    before [;
+        Disrobe:
+            if (self has worn) {
+                if (player in cottage) "~I have no reason to do that.~";
+                "~Now's not the time to be removing my clothes.~";
+            }
+            "You aren't wearing it.";
+
+        Wear: 
+            if (night_gown has worn) "I'm already wearing clothes!";
+            if (self has worn) "I'm already wearing them.";
+            give self worn;
+            print "~Comfy.~^^";
+            endQuest(1);
+            if (quests-->0 == 2) { 
+                print "^You hear the bell chime on your mailbox.^^";
+                startQuest(2);
+            }
+            rtrue;
+    ],
+    after [;
+        Drop: 
+            if (self hasnt worn) "~I would prefer to keep them clean.~";
+    ]
+has clothing pluralname;
+
+Object slice "slice of bread"
+  with
+    name 'slice' 'bread' 'thick',
+    description "A thick slice cut from the loaf of bread.",
+    after [;
+        Eat:
+            print "You enjoy the nourishing (albeit dry) meal, but still feel very hungry. Swiftly, and against your better judgement, you gobble up the rest of the loaf.^^";
+            remove bread;
+            endQuest(0);
+            if (quests-->1 == 2) { 
+                print "^You hear the bell chime on your mailbox.^^";
+                startQuest(2);
+            }
+            rtrue;
+    ],
+  has edible;
+
+! --- Outside Area ---
+
+Object clearing "Scenic Clearing"
+  with
+    description
+        "In a small clearing in the woods stands the Tavernkeep's Cottage, which so happens to be yours. A wooden mailbox stands near the front door. A well-trodden path leads down to the south and around the corner.",
+    in_to cottageDoor,
+    n_to cottageDoor,
+    s_to [;
+        if (quests-->2 == 2) {
+            return villageSquare;
+        }
+        "~I should check the mail first.~";
+    ],
+    cant_go "~I have no reason to walk into the forest.~"
+  has light;
+
+Object -> mailbox "wooden mailbox"
+  with
+    name 'wooden' 'mailbox' 'box' 'mail',
+    description "A wooden mailbox mounted near the doorway.",
+    after [;
+        Open:
+            if (letter_envelope in self && letter_envelope hasnt moved) {
+                "You open the mailbox, revealing an envelope from the King.";
+            }
+    ],
+    class wont
+  has container openable ~open static;
+
+Object -> -> letter_envelope "envelope"
+  with
+    name 'envelope' 'royal' 'mail',
+    description "A royal envelope addressed to the local villagers.",
+    after [;
+        Open:
+            if (royal_letter in self) {
+                move royal_letter to player;
+                "You open the envelope, revealing a letter inside.";
+            }
+    ],
+  has container openable ~open;
+
+Object -> -> -> royal_letter "letter"
+  with
+    name 'letter' 'decree' 'note' 'paper' 'mail',
+    description "A official decree stamped with the King's seal.",
+    after [;
+        Examine:
+            print "^~To all residents of the regional towns and villages:^^As a result of a financial crisis among my subjects, I make the royal decree of outlawing all forms of gambling, under punishment of a hefty fine and 3 days in prison.^^The King~^^";
+            if (quests-->3 == 0) {
+                endQuest(2);
+
+                print "^~This can't be! This is an outrage! What am I supposed to do if not play poker!~^^";
+                print "You think for a moment.^^";
+                print "~This might just motivate me to do something incredibly stupid.~^^";
+                startQuest(3);
+                rtrue;
+            }
+    ];
+
+Object villageSquare "Village Square"
+with description
+    "Stones of different sizes line the ground in an outdoor common area. A large fountain stands in the center while various buildings stand a small distance away. Among them is an adventurer's guild to the north, and a bakery to the south. The path leads out of the village to the east, and back into the woods to the west.",
+    initial [;
+        if (self hasnt visited) {
+            print "~I'm going to need supplies for my journey. Food, and preferably weapons.~^^";
+            startQuest(4);
+            "^";
+        }
+    ],
+    w_to clearing,
+    e_to [;
+        if (quests-->4 ~= 2) "~I'm not prepared to leave the village yet.~";
+        print "Thank you for playing my game! That is all that I have so far. I might finish this at a later date if this gets enough attention, but this small demo gave me enough to work on and I'm happy with it. I hope you enjoyed playing it.";
+        deadflag = 2;
+    ],
+    n_to waxmuseum,
+    s_to bakery
+has light;
+
+Object -> stones "stones"
+with name 'stone' 'stones',
+    description
+        "Many stones line the ground of this plaza, empty except for a fountain in the center of it.",
+has scenery pluralname;
+
+Object -> fountain "fountain"
+with name 'stone' 'fountain',
+    description
+        "A once-beautiful stone fountain, left to erode for many a year now. It has seen better days."
+has scenery;
+
+Object waxmuseum "Adventurer's Guild & Wax Museum"
+with description
+    "Various displays showcase wax replicas of famous adventurers battling their fiercest foes - an amber dragon, a three-eyed troll, a sock with a hole in it - with various weapons and implements. To your north, the bright light of the gift shop illuminates the otherwise-dark room.",
+    n_to giftshop,
+    s_to villageSquare,
+has light;
+
+Object -> troll "three-eyed troll"
+with name 'troll' 'wax' 'model' 'three-eyed'
+    description "An ugly wax model of a three-eyed troll, looming over an unsuspecting target."
+has scenery;
+
+Object -> dragon "amber dragon"
+with name 'amber' 'dragon' 'wax' 'model'
+    description "A majestic wax model of a large amber dragon, its wings almost glittering."
+has scenery;
+
+Object -> models "wax adventurers"
+    with name 'wax' 'models' 'model' 'figure' 'figures' 'sculptures' 'adventurer' 'adventurers' 'sculpture',
+        description
+            "Various wax models of humans and monsters in different poses. A couple of them have weapons, like a sword or a bow."
+has scenery;
+
+Object -> sword "sword"
+    with name 'sword' 'sword',
+        description
+            "A real sword carried by one of the wax figures.",
+        after [;
+            Take:
+                move self to player;
+                print "You pull out the sword from one of the models. ~This should work nicely.~";
+                if (badbread in player) {
+                    print "^^";
+                    endQuest(4);
+                }
+                rtrue;
+        ],
+        describe true;
+
+Object -> bow "bow"
+    with name 'bow' 'bow',
+        description
+            "A real bow carried by one of the wax figures.",
+        before [;
+            Take: "I've always been bad with a bow.";
+            Push, PushDir, Pull: "~It's fine where it is.~";
+        ],
+has scenery;
+
+Object -> sock "sock with a hole in it"
+    with name 'sock', 
+        description "A sock with a hole in it.",
+    after [;
+        Take: score++;
+    ],
+    describe true;
+
+Object giftshop "Wax Museum Gift Shop"
+with description
+        "Various trinkets and figurines line the shelves as a minimum-wage worker stands at the counter, his eyes fixed on the clock hung up on the wall.",
+    s_to waxmuseum
+has light;
+
+Object -> giftshopShelves "shelves"
+    with name 'shelf' 'shelves',
+        description
+            "Simple wooden shelves, lined with trinkets."
+has scenery supporter;
+
+Object -> -> trinkets "trinkets"
+    with name 'trinkets' 'figurines' 'trinket' 'figurines',
+        description
+            "~Tacky, overpriced garbage.~"
+    class wont
+has scenery pluralname;
+
+Object -> worker "worker"
+    with name 'worker' 'employee' 'minimum-wage',
+        description
+            "A simple man who probably hates his job. His eyes are fixed on that cuckoo clock.",
+        before [;
+            Talk:
+                if (second == clock && self hasnt scored) {
+                    print "He looks at you and replies, ~I'm counting down the seconds until I leave.~";
+                    give self scored;
+                    score++;
+                    rtrue;
+                }
+            Ask:
+                if (second == 'clock' && self hasnt scored) {
+                    print "He looks at you and replies, ~I'm counting down the seconds until I leave.~";
+                    give self scored;
+                    score++;
+                    rtrue;
+                }
+        ]
+has scenery animate;
+
+Object -> clock "cuckoo clock"
+    with name 'cuckoo' 'clock',
+        description
+            "A wooden cuckoo clock, mounted on the wall."
+    class wont,
+has static scenery;
+
+Object bakery "Bakery"
+with description
+    "The shop is filled with fresh bread of all different sizes and kinds. Loaves upon loaves line the shelves while the smell of a fresh batch wafts in from the kitchen.^^A door leads out to behind the bakery.",
+    n_to villageSquare,
+    out_to villageSquare,
+    s_to bakeryDoor
+has light;
+
+Object -> bakeryshelves "shelves"
+with name 'shelf' 'shelves',
+    description "Simple wooden shelves."
+has supporter scenery;
+
+Object -> -> bread "artisinal bread"
+with name 'bread' 'loaves' 'loaf' 'artisinal',
+    description "Fresh loaves of artisinal bread. Far too expensive for your budget.",
+    before [;
+        Take: "~It's far too expensive.~";
+    ],
+    class wont
+has pluralname;
+
+Object -> -> discountBread "discounted bread"
+with name 'bread' 'discounted' 'cheap' 'clearance' 'affordable' 'discount',
+    description "The discounted bread, cheaper and sadder than the normal loaves but still too expensive.",
+    before [;
+        Take: "~It's cheaper than the normal bread, but still too expensive.~";
+    ],
+    class wont
+has pluralname;
+
+Object -> bakeryDoor "back door"
+with name 'door',
+    description "A strong-looking wooden door.",
+    door_to [;
+        if (location == bakery) return bakeryback;
+        return bakery;
+    ],
+    found_in bakery bakeryback
+has scenery door openable;
+
+Object bakeryback "Behind the Bakery"
+with description "You are in a badly-lit alleyway in between the bakery and the next building over. There is nothing here but a filthy dumpster and the door to the bakery leading back inside.",
+    in_to bakeryDoor,
+    n_to bakeryDoor
+has light;
+
+Object -> dumpster "filthy dumpster"
+with name 'filthy' 'grimy' 'dirty' 'dumpster' 'trash',
+    description [;
+        if (self has open) "A dirty dumpster filled with rotten waste and baked goods. There can't be anything edible in there.";
+        "A dirty dumpster. Luckily you can't see inside.";
+    ]
+has container scenery openable;
+
+Object -> -> garbage "garbage"
+with name 'trash' 'garbage',
+    description "It's literally garbage. It has no purpose other than to be thrown away.",
+    class wont,
+has static pluralname;
+
+Object -> -> badbread "moldy, half-eaten bread"
+with name 'bread' 'moldy' 'half-eaten',
+    description "This can't possibly be edible.",
+    before [;
+        Eat: "~I can't eat it yet.~";
+    ],
+    after [;
+        Take:
+            if (self hasnt moved) {
+                print "~It may not be food-safe, but I'm on a budget.~";
+            }
+            if (sword in player) {
+                print "^^";
+                endQuest(4);  
+            }
+            move self to player;
+            rtrue;
+    ]
+has edible proper;
+
+! ---------------------------------------------------------
+! Grammar Extensions
+! ---------------------------------------------------------
+
+Include "puny.h";
+
+Verb 'quests' 'quest' 'goals'
+    * -> ShowQuests;
+
+Extend 'slice' first
+    * noun -> Cut
+    * noun 'with' held -> Cut;
+
+Extend 'cut'
+    * noun 'with' held -> Cut;
+
+Verb 'talk'
+    * 'to' noun -> Talk
+    * 'to' noun 'about' noun -> Talk;
